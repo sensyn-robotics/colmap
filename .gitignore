@@ -43,3 +43,7 @@ images/
 *.exe
 *.out
 *.app
+
+# outputs
+core
+*~

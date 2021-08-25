@@ -13,6 +13,26 @@
 
 `nvidia-smi`
 
+If it is not yet installed, install an NVIDIA driver and NVIDIA container runtime & docker
+
+```
+sudo apt install ubuntu-drivers-common
+sudo ubuntu-drivers autoinstall
+```
+
+### troubleshoot
+If you failed to install the above, check the appropriate NVIDIA driver by yourself;
+
+`ubuntu-drivers devices`
+
+, and install it;
+e.g.
+
+`sudo apt install nvidia-driver-455`
+
+ref: “https://collabnix.com/introducing-new-docker-cli-api-support-for-nvidia-gpus-under-docker-engine-19-03-0-beta-release/”
+
+
 3. Setup the nvidia-toolkit on your host machine<sup>[3](#f3)</sup>:
 
 For Ubuntu host machines: `./setup-ubuntu.sh`
