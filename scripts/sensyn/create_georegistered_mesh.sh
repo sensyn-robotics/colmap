@@ -39,11 +39,11 @@ colmap mapper \
     --output_path $WORKDIR/sparse
 
 
-echo "get camera positions as a text file"
+echo "[INFO] get camera positions as a text file"
 colmap model_converter --input_path ${WORKDIR}/sparse/0 --output_path ${WORKDIR}/sparse/0 --output_type TXT
 
 
-echo "create camera positions file work/campose.txt from acsl poslog.csv"
+echo "[INFO] create camera positions file work/campose.txt from acsl poslog.csv"
 python3 scripts/sensyn/poslog2campose.py
 
 
