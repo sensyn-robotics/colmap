@@ -2,7 +2,7 @@
 # This is a script for COLMAP georegistration and then run dense reconstruction
 ####
 
-USAGE="$0 <work directory which have images/, poslog.csv>
+USAGE="$0 <work directory which have images/, <poslog.csv or metadata.json> >
 The project directory must contain a directory named images with all the images."
 
 if [ $# -lt 1 ]; then
@@ -43,9 +43,16 @@ echo "[INFO] get camera positions as a text file"
 colmap model_converter --input_path ${WORKDIR}/sparse/0 --output_path ${WORKDIR}/sparse/0 --output_type TXT
 
 
-echo "[INFO] create camera positions file work/campose.txt from acsl poslog.csv"
-python3 scripts/sensyn/poslog2campose.py
-
+if [ -f "${DATASETDIR}/poslog.csv" ]; then
+    echo "[INFO] create camera positions file work/campose.txt from acsl poslog.csv"
+    python3 scripts/sensyn/poslog2campose.py "${DATASETDIR}"
+elif [ -f "${DATASETDIR}/metadata.json" ]; then
+    echo "[INFO] create camera positions file work/campose.txt from Record3D metadata.json"
+    python3 scripts/sensyn/record3d_to_campose.py "${DATASETDIR}"
+else
+    echo "[ERROR] No poslog.csv or metadata.json found in ${DATASETDIR}"
+    exit 1
+fi
 
 echo "[INFO] georegistrate sparse point cloud"
 GEOREGIDIR=georegistration
