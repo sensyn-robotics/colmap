@@ -14,29 +14,13 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Check if NVIDIA GPU support is available
-GPU_SUPPORT=""
-if command -v nvidia-smi >/dev/null 2>&1; then
-    echo "[INFO] NVIDIA GPU detected, checking Docker GPU support..."
-    if docker run --rm --gpus all nvidia/cuda:11.0-base nvidia-smi >/dev/null 2>&1; then
-        echo "[INFO] GPU support enabled"
-        GPU_SUPPORT="--gpus all"
-    else
-        echo "[WARNING] GPU detected but Docker GPU support failed, running in CPU mode"
-        GPU_SUPPORT=""
-    fi
-else
-    echo "[INFO] No NVIDIA GPU detected, running in CPU mode"
-    GPU_SUPPORT=""
-fi
-
 echo "[INFO] Starting COLMAP Docker container with interactive shell..."
 echo "[INFO] You can run: ./scripts/sensyn/run_sfm.sh"
 echo "[INFO] To exit, type 'exit' or press Ctrl+D"
 
 # Start the container with or without GPU support
 docker run \
-    ${GPU_SUPPORT} \
+    --runtime=nvidia \
     -it \
     --rm \
     -v "${TOPDIR}":/workspace \
