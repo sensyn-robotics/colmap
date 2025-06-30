@@ -8,18 +8,21 @@ metadata.json instead of poslog.csv.
 
 import json
 import os
+import sys
 
 
 def main():
-    script_path = os.path.dirname(os.path.realpath(__file__))
+    if len(sys.argv) != 2:
+        print("Usage: python3 record3d_to_campose.py <dataset_directory>")
+        return 1
+
+    dataset_dir = sys.argv[1]
 
     # Input: metadata.json file
-    metadata_path = os.path.join(
-        script_path, "../../dataset/sample/metadata.json"
-    )
+    metadata_path = os.path.join(dataset_dir, "metadata.json")
 
     # Output: campose.txt file
-    output_path = os.path.join(script_path, "../../dataset/work/campose.txt")
+    output_path = os.path.join(dataset_dir, "work", "campose.txt")
 
     # Ensure output directory exists
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
