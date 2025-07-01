@@ -47,4 +47,4 @@ vcpkg_installed/
 *.out
 *.app
 
-dataset/
+dataset*/
