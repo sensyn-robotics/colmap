@@ -26,6 +26,17 @@ docker run \
     -v "${TOPDIR}":/workspace \
     -w /workspace \
     colmap/colmap:latest \
-    bash -c "echo 'COLMAP Docker container ready. Run: ./scripts/sensyn/run_sfm.sh'; exec bash"
+     bash -c "
+        echo '[INFO] COLMAP Docker container starting...'
+        echo '[INFO] Installing debugging tools (sqlite3)...'
+        apt-get update >/dev/null 2>&1 && apt-get install -y sqlite3 >/dev/null 2>&1
+        if command -v sqlite3 >/dev/null 2>&1; then
+            echo '[INFO] ✅ sqlite3 installed successfully'
+        else
+            echo '[WARNING] ❌ sqlite3 installation failed - continuing without debugging tools'
+        fi
+        echo '[INFO] COLMAP Docker container ready. Run: ./scripts/sensyn/run_sfm.sh'
+        exec bash
+    "
 
 echo "[INFO] Exited Docker container"
