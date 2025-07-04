@@ -62,19 +62,25 @@ FROM nvidia/cuda:${NVIDIA_CUDA_VERSION}-runtime-ubuntu${UBUNTU_VERSION} AS runti
 # build dependencies are not needed.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends --no-install-suggests \
-    libboost-program-options1.83.0 \
-    libc6 \
-    libceres4t64 \
-    libfreeimage3 \
-    libgcc-s1 \
-    libgl1 \
-    libglew2.2 \
-    libgoogle-glog0v6t64 \
-    libqt5core5a \
-    libqt5gui5 \
-    libqt5widgets5 \
-    libcurl4 \
-    libmkl-intel-lp64 && \
+        libboost-program-options1.83.0 \
+        libc6 \
+        libomp5 \
+        libopengl0 \
+        libmetis5 \
+        libceres4t64 \
+        libfreeimage3 \
+        libgcc-s1 \
+        libgl1 \
+        libglew2.2 \
+        libgoogle-glog0v6t64 \
+        libqt5core5a \
+        libqt5gui5 \
+        libqt5widgets5 \
+        libcurl4 \
+        libmkl-locale \
+        libmkl-intel-lp64 \
+        libmkl-intel-thread \
+        libmkl-core && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
