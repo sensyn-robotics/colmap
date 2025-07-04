@@ -6,12 +6,14 @@
 SCRIPT=$(realpath $0)
 TOPDIR=$(dirname $SCRIPT)/../..
 
-echo "[INFO] Pulling official COLMAP Docker image..."
-docker pull colmap/colmap:latest
-
-if [ $? -ne 0 ]; then
-    echo "[ERROR] Failed to pull COLMAP Docker image"
-    exit 1
+# Check if local colmap:latest image exists (in case you ran build.sh), otherwise use official image
+if docker image inspect colmap:latest >/dev/null 2>&1; then
+    echo "Using local COLMAP Docker image..."
+    COLMAP_IMAGE="colmap:latest"
+else
+    echo "Local COLMAP image not found, pulling official image..."
+    docker pull colmap/colmap:latest
+    COLMAP_IMAGE="colmap/colmap:latest"
 fi
 
 echo "[INFO] Starting COLMAP Docker container with interactive shell..."
@@ -25,7 +27,7 @@ docker run \
     --rm \
     -v "${TOPDIR}":/workspace \
     -w /workspace \
-    colmap/colmap:latest \
+    $COLMAP_IMAGE \
      bash -c "
         echo '[INFO] COLMAP Docker container starting...'
         echo '[INFO] Installing debugging tools (sqlite3)...'
