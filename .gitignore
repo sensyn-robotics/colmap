@@ -47,4 +47,8 @@ vcpkg_installed/
 *.out
 *.app
 
+# backup files
+*~
+*.orig
+
 dataset*/
