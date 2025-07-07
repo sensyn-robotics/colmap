@@ -51,4 +51,5 @@ vcpkg_installed/
 *~
 *.orig
 
+tmp/
 dataset*/
