@@ -41,7 +41,10 @@ echo "[INFO] Start feature extraction..."
 colmap feature_extractor \
    --database_path $WORKDIR/database.db \
    --image_path $DATASETDIR/images \
-   --ImageReader.single_camera 1
+   --ImageReader.single_camera 1 \
+   --SiftExtraction.max_image_size 1200 \
+   --SiftExtraction.max_num_features 4096 \
+   --SiftExtraction.use_gpu 1
 
 echo "[INFO] Checking feature extraction results..."
 FEATURE_COUNT=$(sqlite3 $WORKDIR/database.db "SELECT COUNT(*) FROM keypoints;")
@@ -66,7 +69,8 @@ if [ "$MATCH_COUNT" -lt "10" ]; then
        --database_path $WORKDIR/database.db \
        --SiftMatching.guided_matching 1 \
        --SiftMatching.max_ratio 0.8 \
-       --SiftMatching.max_distance 0.7
+       --SiftMatching.max_distance 0.7 \
+       --SiftMatching.max_num_matches 8192 
     
     MATCH_COUNT=$(sqlite3 $WORKDIR/database.db "SELECT COUNT(*) FROM matches WHERE rows > 15;")
     echo "[INFO] After exhaustive matching: $MATCH_COUNT image pairs with >15 matches"
@@ -78,8 +82,15 @@ mkdir -p $WORKDIR/sparse
 colmap mapper \
     --database_path $WORKDIR/database.db \
     --image_path $DATASETDIR/images \
-    --output_path $WORKDIR/sparse 
-
+    --output_path $WORKDIR/sparse \
+    --Mapper.ba_global_max_num_iterations 25 \
+    --Mapper.ba_global_max_refinements 2 \
+    --Mapper.ba_local_max_num_iterations 15 \
+    --Mapper.ba_local_num_images 4 \
+    --Mapper.multiple_models false \
+    --Mapper.max_num_models 1 \
+    --Mapper.num_threads 16 \
+   --Mapper.ba_use_gpu 1
 
 echo "[INFO] get camera positions as a text file"
 colmap model_converter --input_path ${WORKDIR}/sparse/0 --output_path ${WORKDIR}/sparse/0 --output_type TXT
