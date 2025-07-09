@@ -90,27 +90,10 @@ colmap mapper \
     --Mapper.multiple_models false \
     --Mapper.max_num_models 1 \
     --Mapper.num_threads 16 \
-   --Mapper.ba_use_gpu 1
+    --Mapper.ba_use_gpu 1
 
-echo "[INFO] get camera positions as a text file"
-colmap model_converter --input_path ${WORKDIR}/sparse/0 --output_path ${WORKDIR}/sparse/0 --output_type TXT
-
-
-if [ -f "${DATASETDIR}/poslog.csv" ]; then
-    echo "[INFO] create camera positions file work/campose.txt from acsl poslog.csv"
-    python3 scripts/sensyn/poslog2campose.py "${DATASETDIR}"
-elif [ -f "${DATASETDIR}/metadata.json" ]; then
-    echo "[INFO] create camera positions file work/campose.txt from Record3D metadata.json"
-    python3 scripts/sensyn/record3d_to_campose.py "${DATASETDIR}"
-else
-    echo "[ERROR] No poslog.csv or metadata.json found in ${DATASETDIR}"
-    exit 1
-fi
-
-echo "[INFO] Georegistrate sparse point cloud"
-GEOREGIDIR=georegistration
-mkdir -p ${WORKDIR}/sparse/${GEOREGIDIR}
-if [ ! -d "${WORKDIR}/sparse/0" ] || [ ! -f "${WORKDIR}/sparse/0/cameras.bin" ]; then
+# Check if sparse reconstruction was successful
+if [ ! -d "$WORKDIR/sparse/0" ] || [ ! -f "$WORKDIR/sparse/0/cameras.bin" ]; then
     echo "[ERROR] Sparse reconstruction failed. No 3D model was created."
     echo "[ERROR] This usually means:"
     echo "  1. Images don't have enough overlap"
@@ -120,11 +103,82 @@ if [ ! -d "${WORKDIR}/sparse/0" ] || [ ! -f "${WORKDIR}/sparse/0/cameras.bin" ];
     exit 1
 fi
 
-colmap model_aligner \
+echo "[INFO] get camera positions as a text file"
+colmap model_converter --input_path ${WORKDIR}/sparse/0 --output_path ${WORKDIR}/sparse/0 --output_type TXT
+
+
+if [ -f "${DATASETDIR}/poslog.csv" ]; then
+    echo "[INFO] create camera positions file work/campose.txt from acsl poslog.csv"
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[ERROR] python3 is not installed. Cannot process poslog.csv"
+        echo "[ERROR] Run the container with start_sensyn_docker.sh to install dependencies"
+        exit 1
+    fi
+    if [ ! -f "scripts/sensyn/poslog2campose.py" ]; then
+        echo "[ERROR] poslog2campose.py script not found in scripts/sensyn/"
+        exit 1
+    fi
+    if ! python3 scripts/sensyn/poslog2campose.py "${DATASETDIR}"; then
+        echo "[ERROR] Failed to convert poslog.csv to campose.txt"
+        echo "[ERROR] Check if pandas is installed: python3 -c 'import pandas'"
+        exit 1
+    fi
+elif [ -f "${DATASETDIR}/metadata.json" ]; then
+    echo "[INFO] create camera positions file work/campose.txt from Record3D metadata.json"
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[ERROR] python3 is not installed. Cannot process metadata.json"
+        echo "[ERROR] Run the container with start_sensyn_docker.sh to install dependencies"
+        exit 1
+    fi
+    if [ ! -f "scripts/sensyn/record3d_to_campose.py" ]; then
+        echo "[ERROR] record3d_to_campose.py script not found in scripts/sensyn/"
+        exit 1
+    fi
+    if ! python3 scripts/sensyn/record3d_to_campose.py "${DATASETDIR}"; then
+        echo "[ERROR] Failed to convert metadata.json to campose.txt"
+        echo "[ERROR] Check if python3 is installed and the script exists"
+        exit 1
+    fi
+else
+    echo "[ERROR] No poslog.csv or metadata.json found in ${DATASETDIR}"
+    exit 1
+fi
+
+# Check if campose.txt was created successfully
+if [ ! -f "${WORKDIR}/campose.txt" ]; then
+    echo "[ERROR] Failed to create campose.txt file"
+    echo "[ERROR] Georegistration cannot proceed without camera positions"
+    exit 1
+fi
+
+echo "[INFO] Georegistrate sparse point cloud"
+GEOREGIDIR=georegistration
+mkdir -p ${WORKDIR}/sparse/${GEOREGIDIR}
+
+echo "[INFO] Running model_aligner for georegistration..."
+if colmap model_aligner \
     --input_path ${WORKDIR}/sparse/0 \
     --output_path ${WORKDIR}/sparse/${GEOREGIDIR} \
     --ref_images_path ${WORKDIR}/campose.txt \
-    --max_error 5.0
+    --max_error 5.0; then
+    echo "[INFO] ✅ Georegistration completed successfully"
+else
+    echo "[ERROR] ❌ Georegistration failed!"
+    echo "[ERROR] This usually means:"
+    echo "  1. Camera positions in metadata don't match COLMAP reconstruction"
+    echo "  2. Coordinate system mismatch between metadata and images"
+    echo "  3. Too few matching images between metadata and reconstruction"
+    echo "[ERROR] Check your metadata file and image timestamps"
+    exit 1
+fi
+
+# Verify georegistration output exists
+if [ ! -d "${WORKDIR}/sparse/${GEOREGIDIR}" ] || [ ! -f "${WORKDIR}/sparse/${GEOREGIDIR}/cameras.bin" ]; then
+    echo "[ERROR] Georegistration output missing. Cannot proceed with dense reconstruction."
+    echo "[INFO] Available files in sparse directory:"
+    ls -la ${WORKDIR}/sparse/
+    exit 1
+fi
 
 
 echo "[INFO] Start dense reconstruciton for georegistered data"
