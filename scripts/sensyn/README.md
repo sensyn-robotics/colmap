@@ -7,11 +7,12 @@ sfm result(meshed_poisson.ply) which is georegistered to ACSL's vslam camera pos
 # Setup
 
 ## Method 1: Docker (Recommended)
-Docker provides a consistent environment and handles all dependencies automatically.
+Docker provides a consistent environment and handles all dependencies automatically. Our custom image builds COLMAP from source with CUDA 12.9.1 for maximum compatibility.
 
 ### Quick Start
 ```bash
-# 1. Build optimized Docker image (one-time setup, ~5-10 minutes)
+# 1. Build optimized Docker image (one-time setup, ~10-15 minutes)
+#    This builds COLMAP from source with CUDA 12.9.1 and includes all dependencies
 ./scripts/sensyn/docker_manager.sh build
 
 # 2. Run pipeline on your dataset
@@ -48,18 +49,22 @@ Docker provides a consistent environment and handles all dependencies automatica
 ```
 
 ## Method 2: Manual Setup (Advanced)
+
+**Note:** The recommended approach is Method 1 (Docker build) which creates a custom image with COLMAP built from source using CUDA 12.9.1. The methods below use pre-built images which may have CUDA compatibility issues.
+
 ### Build Custom Image 
 ```bash
 # Build custom image with dependencies pre-installed (one-time setup)
 ./scripts/sensyn/build_custom_image.sh
 
-# This creates 'colmap-sensyn:latest' with python3, sqlite3, and pandas pre-installed
+# This creates 'colmap-sensyn:latest' with COLMAP built from source (CUDA 12.9.1)
+# Plus python3, sqlite3, pandas, and all sensyn dependencies pre-installed
 # Container startup will be < 30 seconds after this
 ```
 
 ### Start docker
 ```bash
-# Current version installs dependencies on each startup (5+ minutes)
+# Alternative: Use pre-built image (may have CUDA compatibility issues)
 ./scripts/sensyn/start_sensyn_docker.sh
 ```
 This will start a colmap docker which mount the colmap top directory.
@@ -115,7 +120,14 @@ The pipeline automatically skips completed steps for efficiency:
 #### CUDA Driver Mismatch (most common)
 If you see: `CUDA driver version is insufficient for CUDA runtime version`
 
-**Quick Fix:**
+**Recommended Fix:**
+```bash
+# Use our custom Docker image which builds COLMAP from source with CUDA 12.9.1
+./scripts/sensyn/docker_manager.sh build
+./scripts/sensyn/docker_manager.sh run dataset
+```
+
+**Alternative Fix:**
 ```bash
 # Use CPU mode to avoid CUDA issues entirely
 ./scripts/sensyn/docker_manager.sh run dataset --cpu-only
@@ -124,7 +136,14 @@ If you see: `CUDA driver version is insufficient for CUDA runtime version`
 #### CUDA PTX Toolchain Mismatch
 If you see: `the provided PTX was compiled with an unsupported toolchain`
 
-**Quick Fix:**
+**Recommended Fix:**
+```bash
+# Use our custom Docker image (builds COLMAP from source, no PTX issues)
+./scripts/sensyn/docker_manager.sh build
+./scripts/sensyn/docker_manager.sh run dataset
+```
+
+**Alternative Fix:**
 ```bash
 # Use CPU mode for dense reconstruction only (other steps use GPU)
 ./scripts/sensyn/docker_manager.sh run dataset --cpu-dense
