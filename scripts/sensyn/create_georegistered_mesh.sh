@@ -74,10 +74,37 @@ if [ "$MATCH_COUNT" -lt "10" ]; then
     
     MATCH_COUNT=$(sqlite3 $WORKDIR/database.db "SELECT COUNT(*) FROM matches WHERE rows > 15;")
     echo "[INFO] After exhaustive matching: $MATCH_COUNT image pairs with >15 matches"
+    
+    if [ "$MATCH_COUNT" -lt "5" ]; then
+        echo "[WARNING] Still very few matches after exhaustive matching."
+        echo "[WARNING] Trying with relaxed matching parameters..."
+        colmap exhaustive_matcher \
+           --database_path $WORKDIR/database.db \
+           --SiftMatching.guided_matching 0 \
+           --SiftMatching.max_ratio 0.9 \
+           --SiftMatching.max_distance 0.8 \
+           --SiftMatching.max_num_matches 16384 
+        
+        FINAL_MATCH_COUNT=$(sqlite3 $WORKDIR/database.db "SELECT COUNT(*) FROM matches WHERE rows > 10;")
+        echo "[INFO] After relaxed matching: $FINAL_MATCH_COUNT image pairs with >10 matches"
+    fi
 fi
 
 
 echo "[INFO] Starting 3D reconstruction..."
+echo "[DEBUG] Checking match quality before reconstruction..."
+TOTAL_MATCHES=$(sqlite3 $WORKDIR/database.db "SELECT COUNT(*) FROM matches;")
+GOOD_MATCHES=$(sqlite3 $WORKDIR/database.db "SELECT COUNT(*) FROM matches WHERE rows > 15;")
+echo "[DEBUG] Total image pairs: $TOTAL_MATCHES"
+echo "[DEBUG] Good matches (>15 features): $GOOD_MATCHES"
+if [ "$GOOD_MATCHES" -lt "5" ]; then
+    echo "[WARNING] Very few good matches ($GOOD_MATCHES). Reconstruction may fail."
+    echo "[WARNING] This often happens with:"
+    echo "  - Images taken from too similar viewpoints"
+    echo "  - Low-texture scenes (sky, walls, water)"
+    echo "  - Motion blur or poor lighting"
+fi
+
 mkdir -p $WORKDIR/sparse
 colmap mapper \
     --database_path $WORKDIR/database.db \
@@ -95,11 +122,18 @@ colmap mapper \
 # Check if sparse reconstruction was successful
 if [ ! -d "$WORKDIR/sparse/0" ] || [ ! -f "$WORKDIR/sparse/0/cameras.bin" ]; then
     echo "[ERROR] Sparse reconstruction failed. No 3D model was created."
-    echo "[ERROR] This usually means:"
-    echo "  1. Images don't have enough overlap"
-    echo "  2. Images are too blurry or low quality" 
-    echo "  3. Scene lacks distinctive features"
-    echo "[INFO] Check your images and try with different parameters"
+    echo "[ERROR] Common causes and solutions:"
+    echo "  1. Images don't have enough overlap (need 60-80% overlap)"
+    echo "  2. Images are too blurry or low quality"
+    echo "  3. Scene lacks distinctive features (try textured objects)"
+    echo "  4. Try different feature extraction settings:"
+    echo "     - Reduce --SiftExtraction.max_image_size (try 800)"
+    echo "     - Increase --SiftExtraction.max_num_features (try 8192)"
+    echo "     - Try --SiftExtraction.use_gpu 0 if GPU fails"
+    echo "  5. For video sequences, ensure images are from different viewpoints"
+    echo "[INFO] Debug: Check your images with: ls -la \${DATASETDIR}/images/ | head -10"
+    echo "[INFO] Debug: Check database contents with: sqlite3 \${WORKDIR}/database.db"
+    echo "[INFO] Debug: Check feature matches with: 'SELECT COUNT(*) FROM matches;'"
     exit 1
 fi
 
@@ -155,12 +189,25 @@ echo "[INFO] Georegistrate sparse point cloud"
 GEOREGIDIR=georegistration
 mkdir -p ${WORKDIR}/sparse/${GEOREGIDIR}
 
-echo "[INFO] Running model_aligner for georegistration..."
+# Determine coordinate system based on metadata source
+if [ -f "${DATASETDIR}/poslog.csv" ]; then
+    echo "[INFO] Using GPS coordinates from poslog.csv"
+    REF_IS_GPS=1
+elif [ -f "${DATASETDIR}/metadata.json" ]; then
+    echo "[INFO] Using local coordinates from Record3D metadata.json"
+    REF_IS_GPS=0
+else
+    echo "[ERROR] No metadata source found"
+    exit 1
+fi
+
+echo "[INFO] Running model_aligner for georegistration (ref_is_gps=$REF_IS_GPS)..."
 if colmap model_aligner \
     --input_path ${WORKDIR}/sparse/0 \
     --output_path ${WORKDIR}/sparse/${GEOREGIDIR} \
     --ref_images_path ${WORKDIR}/campose.txt \
-    --max_error 5.0; then
+    --ref_is_gps $REF_IS_GPS \
+    --alignment_max_error 5.0; then
     echo "[INFO] ✅ Georegistration completed successfully"
 else
     echo "[ERROR] ❌ Georegistration failed!"
@@ -181,31 +228,72 @@ if [ ! -d "${WORKDIR}/sparse/${GEOREGIDIR}" ] || [ ! -f "${WORKDIR}/sparse/${GEO
 fi
 
 
-echo "[INFO] Start dense reconstruciton for georegistered data"
+echo "[INFO] Start dense reconstruction for georegistered data"
 mkdir -p $WORKDIR/dense
 
-colmap image_undistorter \
+echo "[INFO] Step 1: Image undistortion and rectification..."
+if colmap image_undistorter \
     --image_path $DATASETDIR/images \
     --input_path $WORKDIR/sparse/${GEOREGIDIR} \
     --output_path $WORKDIR/dense/${GEOREGIDIR} \
     --output_type COLMAP \
-    --max_image_size 2000
+    --max_image_size 1000; then
+    echo "[INFO] ✅ Image undistortion completed"
+else
+    echo "[ERROR] ❌ Image undistortion failed"
+    echo "[ERROR] Try with smaller --max_image_size (e.g., 800)"
+    exit 1
+fi
 
-colmap patch_match_stereo \
+echo "[INFO] Step 2: Patch match stereo (dense matching)..."
+if colmap patch_match_stereo \
     --workspace_path $WORKDIR/dense/${GEOREGIDIR} \
     --workspace_format COLMAP \
-    --PatchMatchStereo.geom_consistency true
+    --PatchMatchStereo.geom_consistency true \
+    --PatchMatchStereo.max_image_size 1000; then
+    echo "[INFO] ✅ Patch match stereo completed"
+else
+    echo "[ERROR] ❌ Patch match stereo failed"
+    echo "[ERROR] This is often due to GPU memory issues. Try:"
+    echo "  1. Reduce --max_image_size to 800"
+    echo "  2. Use CPU mode by removing GPU-related flags"
+    echo "  3. Process fewer images at once"
+    exit 1
+fi
 
-colmap stereo_fusion \
+echo "[INFO] Step 3: Stereo fusion (point cloud generation)..."
+if colmap stereo_fusion \
     --workspace_path $WORKDIR/dense/${GEOREGIDIR} \
     --workspace_format COLMAP \
     --input_type geometric \
-    --output_path $WORKDIR/dense/${GEOREGIDIR}/fused.ply
+    --output_path $WORKDIR/dense/${GEOREGIDIR}/fused.ply; then
+    echo "[INFO] ✅ Point cloud (fused.ply) generated"
+else
+    echo "[ERROR] ❌ Stereo fusion failed"
+    echo "[ERROR] Check if patch match stereo generated depth maps"
+    exit 1
+fi
 
-colmap poisson_mesher \
+echo "[INFO] Step 4: Mesh generation..."
+echo "[INFO] Creating Poisson mesh..."
+if colmap poisson_mesher \
     --input_path $WORKDIR/dense/${GEOREGIDIR}/fused.ply \
-    --output_path $WORKDIR/dense/${GEOREGIDIR}/meshed-poisson.ply
+    --output_path $WORKDIR/dense/${GEOREGIDIR}/meshed-poisson.ply; then
+    echo "[INFO] ✅ Poisson mesh created"
+else
+    echo "[WARNING] ⚠️  Poisson mesh creation failed, trying Delaunay..."
+fi
 
-colmap delaunay_mesher \
+echo "[INFO] Creating Delaunay mesh..."
+if colmap delaunay_mesher \
     --input_path $WORKDIR/dense/${GEOREGIDIR} \
-    --output_path $WORKDIR/dense/${GEOREGIDIR}/meshed-delaunay.ply
+    --output_path $WORKDIR/dense/${GEOREGIDIR}/meshed-delaunay.ply; then
+    echo "[INFO] ✅ Delaunay mesh created"
+else
+    echo "[WARNING] ⚠️  Delaunay mesh creation failed"
+fi
+
+echo "[INFO] === DENSE RECONSTRUCTION COMPLETE ==="
+echo "[INFO] Results in: $WORKDIR/dense/${GEOREGIDIR}/"
+echo "[INFO] Point cloud: fused.ply"
+echo "[INFO] Meshes: meshed-poisson.ply, meshed-delaunay.ply"
