@@ -10,9 +10,14 @@ Examples:
   $0 ./dataset                    # Run full pipeline
   $0 ./dataset --force-sparse     # Force re-run sparse reconstruction
   $0 ./dataset --force-dense      # Force re-run dense reconstruction
+  $0 ./dataset --cpu-only         # Force CPU mode (avoid CUDA issues)
+  $0 ./dataset --cpu-dense        # Force CPU for dense reconstruction only
   $0 ./dataset --help             # Show pipeline help
 
-Options are passed directly to the pipeline script.
+Options:
+  --cpu-only                      # Force CPU mode, avoid GPU/CUDA issues
+  --cpu-dense                     # Force CPU for dense reconstruction only (handles PTX errors)
+  All other options are passed directly to the pipeline script.
 
 Requirements:
   - Dataset must contain images/ directory
@@ -74,14 +79,30 @@ fi
 
 # Prepare Docker run command
 DOCKER_ARGS=""
+USE_GPU=true
 
-# Try GPU first, fallback to CPU
-if docker run --rm --gpus all $DOCKER_IMAGE nvidia-smi >/dev/null 2>&1; then
-    echo "[INFO] 🚀 GPU detected, using CUDA acceleration"
+# Check for CPU-only flag
+for arg in "$@"; do
+    if [ "$arg" = "--cpu-only" ]; then
+        echo "[INFO] 💻 CPU-only mode requested"
+        USE_GPU=false
+        break
+    fi
+done
+
+# Try GPU first (unless CPU-only requested), fallback to CPU
+if [ "$USE_GPU" = true ] && docker run --rm --runtime=nvidia $DOCKER_IMAGE find /usr/local/cuda-*/targets/*/lib -name "libcudart.so*" 2>/dev/null | head -1 >/dev/null 2>&1; then
+    echo "[INFO] 🚀 GPU detected, using CUDA acceleration with --runtime=nvidia"
+    DOCKER_ARGS="--runtime=nvidia"
+elif [ "$USE_GPU" = true ] && docker run --rm --gpus all $DOCKER_IMAGE nvidia-smi >/dev/null 2>&1; then
+    echo "[INFO] 🚀 GPU detected, using CUDA acceleration with --gpus all"
     DOCKER_ARGS="--gpus all"
 else
-    echo "[INFO] 💻 GPU not available, using CPU mode"
+    echo "[INFO] 💻 Using CPU mode (GPU unavailable or --cpu-only specified)"
     echo "[WARNING] Dense reconstruction will be slower without GPU"
+    if [ "$USE_GPU" = true ]; then
+        echo "[INFO] This avoids CUDA driver compatibility issues"
+    fi
 fi
 
 # Run the pipeline

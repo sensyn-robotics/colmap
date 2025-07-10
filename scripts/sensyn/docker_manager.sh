@@ -19,6 +19,8 @@ show_help() {
     echo "  $0 build                    # Build custom image (recommended first step)"
     echo "  $0 run ./dataset            # Run pipeline on dataset"
     echo "  $0 run ./dataset --force-dense  # Force re-run dense reconstruction"
+    echo "  $0 run ./dataset --cpu-only     # Force CPU mode (avoid CUDA issues)"
+    echo "  $0 run ./dataset --cpu-dense    # Force CPU for dense reconstruction only"
     echo "  $0 shell                    # Interactive debugging shell"
     echo "  $0 status                   # Check available images"
 }

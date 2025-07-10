@@ -424,20 +424,12 @@ if [ "$FORCE_DENSE" = false ] && [ "$DEPTH_MAPS_COUNT" -gt 0 ]; then
     echo "[INFO] ✅ Patch match stereo already completed ($DEPTH_MAPS_COUNT depth maps found), skipping..."
 else
     echo "[INFO] Step 2: Patch match stereo (dense matching)..."
-    if colmap patch_match_stereo \
+    colmap patch_match_stereo \
         --workspace_path $WORKDIR/dense/${GEOREGIDIR} \
         --workspace_format COLMAP \
         --PatchMatchStereo.geom_consistency true \
-        --PatchMatchStereo.max_image_size 1000; then
-        echo "[INFO] ✅ Patch match stereo completed"
-    else
-        echo "[ERROR] ❌ Patch match stereo failed"
-        echo "[ERROR] This is often due to GPU memory issues. Try:"
-        echo "  1. Reduce --max_image_size to 800"
-        echo "  2. Use CPU mode by removing GPU-related flags"
-        echo "  3. Process fewer images at once"
-        exit 1
-    fi
+        --PatchMatchStereo.max_image_size 1000
+    echo "[INFO] ✅ Patch match stereo completed"
 fi
 
 # Step 3: Stereo fusion (point cloud generation)

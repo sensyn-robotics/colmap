@@ -109,6 +109,43 @@ The pipeline automatically skips completed steps for efficiency:
 ```
 
 ## Troubleshooting
+
+### Common Issues
+
+#### CUDA Driver Mismatch (most common)
+If you see: `CUDA driver version is insufficient for CUDA runtime version`
+
+**Quick Fix:**
+```bash
+# Use CPU mode to avoid CUDA issues entirely
+./scripts/sensyn/docker_manager.sh run dataset --cpu-only
+```
+
+#### CUDA PTX Toolchain Mismatch
+If you see: `the provided PTX was compiled with an unsupported toolchain`
+
+**Quick Fix:**
+```bash
+# Use CPU mode for dense reconstruction only (other steps use GPU)
+./scripts/sensyn/docker_manager.sh run dataset --cpu-dense
+```
+
+**Diagnostic:**
+```bash
+# Check your CUDA setup
+./scripts/sensyn/check_cuda.sh
+```
+
+#### Performance Issues
+```bash
+# For slower CPU processing, reduce image size
+./scripts/sensyn/docker_manager.sh run dataset --cpu-only --force-dense
+
+# Inside the container, manually set smaller image size:
+colmap patch_match_stereo --PatchMatchStereo.max_image_size 600
+```
+
+#### General Troubleshooting
 ```bash
 # Check pipeline health
 ./scripts/sensyn/diagnose_reconstruction.sh /path/to/dataset
@@ -118,4 +155,7 @@ The pipeline automatically skips completed steps for efficiency:
 
 # Interactive debugging
 ./scripts/sensyn/docker_manager.sh shell
+
+# CUDA compatibility check
+./scripts/sensyn/check_cuda.sh
 ```
