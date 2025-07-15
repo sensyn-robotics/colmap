@@ -27,43 +27,62 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
+#include "colmap/feature/extractor.h"
 
-#include <string>
-#include <vector>
+#include "colmap/feature/sift.h"
+#include "colmap/util/misc.h"
 
 namespace colmap {
+namespace {
 
-// Format string by replacing embedded format specifiers with their respective
-// values, see `printf` for more details. This is a modified implementation
-// of Google's BSD-licensed StringPrintf function.
-std::string StringPrintf(const char* format, ...);
+void ThrowUnknownFeatureExtractorType(FeatureExtractorType type) {
+  std::ostringstream error;
+  error << "Unknown feature extractor type: " << type;
+  throw std::runtime_error(error.str());
+}
 
-// Replace all occurrences of `old_str` with `new_str` in the given string.
-std::string StringReplace(const std::string& str,
-                          const std::string& old_str,
-                          const std::string& new_str);
+}  // namespace
 
-// Get substring of string after search key
-std::string StringGetAfter(const std::string& str, const std::string& key);
+FeatureExtractionOptions::FeatureExtractionOptions(FeatureExtractorType type)
+    : type(type), sift(std::make_shared<SiftExtractionOptions>()) {}
 
-// Split string into list of words using the given delimiters.
-std::vector<std::string> StringSplit(const std::string& str,
-                                     const std::string& delim);
+int FeatureExtractionOptions::MaxImageSize() const {
+  switch (type) {
+    case FeatureExtractorType::SIFT:
+      return sift->max_image_size;
+    default:
+      ThrowUnknownFeatureExtractorType(type);
+  }
+  return -1;
+}
 
-// Check whether a string starts with a certain prefix.
-bool StringStartsWith(const std::string& str, const std::string& prefix);
+bool FeatureExtractionOptions::Check() const {
+  if (use_gpu) {
+    CHECK_OPTION_GT(CSVToVector<int>(gpu_index).size(), 0);
+#ifndef COLMAP_GPU_ENABLED
+    LOG(ERROR) << "Cannot use GPU feature Extraction without CUDA or OpenGL "
+                  "support. Set use_gpu or use_gpu to false.";
+    return false;
+#endif
+  }
+  if (type == FeatureExtractorType::SIFT) {
+    return THROW_CHECK_NOTNULL(sift)->Check();
+  } else {
+    LOG(ERROR) << "Unknown feature extractor type: " << type;
+    return false;
+  }
+  return true;
+}
 
-// Remove whitespace from string on both, left, or right sides.
-void StringTrim(std::string* str);
-void StringLeftTrim(std::string* str);
-void StringRightTrim(std::string* str);
-
-// Convert string to lower/upper case.
-void StringToLower(std::string* str);
-void StringToUpper(std::string* str);
-
-// Check whether the sub-string is contained in the given string.
-bool StringContains(const std::string& str, const std::string& sub_str);
+std::unique_ptr<FeatureExtractor> FeatureExtractor::Create(
+    const FeatureExtractionOptions& options) {
+  switch (options.type) {
+    case FeatureExtractorType::SIFT:
+      return CreateSiftFeatureExtractor(options);
+    default:
+      ThrowUnknownFeatureExtractorType(options.type);
+  }
+  return nullptr;
+}
 
 }  // namespace colmap
