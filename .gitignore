@@ -53,3 +53,6 @@ vcpkg_installed/
 # backup files
 *~
 *.orig
+
+# data
+dataset/
