@@ -35,6 +35,7 @@
 #include "colmap/scene/reconstruction.h"
 #include "colmap/scene/reconstruction_io_utils.h"
 #include "colmap/scene/track.h"
+#include "colmap/util/endian.h"
 #include "colmap/util/file.h"
 #include "colmap/util/types.h"
 
@@ -300,7 +301,7 @@ void WriteRigsBinary(const Reconstruction& reconstruction,
                                    static_cast<int>(rig.RefSensorId().type));
       WriteBinaryLittleEndian<uint32_t>(&stream, rig.RefSensorId().id);
     }
-    for (const auto& [sensor_id, sensor_from_rig] : rig.Sensors()) {
+    for (const auto& [sensor_id, sensor_from_rig] : rig.NonRefSensors()) {
       WriteBinaryLittleEndian<int>(&stream, static_cast<int>(sensor_id.type));
       WriteBinaryLittleEndian<uint32_t>(&stream, sensor_id.id);
       WriteBinaryLittleEndian<uint8_t>(&stream,
