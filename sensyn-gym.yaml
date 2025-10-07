@@ -1,0 +1,11 @@
+experiment_name: "colmap"
+workspace: "power-grid-check-dev-ml"
+environment:
+  name: "https://hub.docker.com/r/colmap/colmap"
+  version: "latest"
+compute: "lambda-cluster"
+command: "colmap automatic_reconstructor --workspace_path ."
+image_path: # optional
+  input: "tower_closeup_3fps_275_278" # This must match your registered Azure ML data asset name
+metadata: # optional
+  task: "SfM for Gaussian Splatting"
