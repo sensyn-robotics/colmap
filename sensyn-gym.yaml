@@ -3,9 +3,9 @@ workspace: "power-grid-check-dev-ml"
 environment:
   name: "sensynmldev.azurecr.io/colmap"
   version: "latest"
-compute: "NC24ads-A100"
+compute: "NC24ads-A100" # lambda-cluster, NC24ads-A100
 command: "colmap automatic_reconstructor --workspace_path ."
-image_path: # optional
-  input: "tower_closeup_3fps_bgblur_275_278" # This must match your registered Azure ML data asset name
+data: # optional
+  image_path: "tower_closeup_3fps_bgblur_275_278" # This must match your registered Azure ML data asset name
 metadata: # optional
   task: "SfM for Gaussian Splatting"
