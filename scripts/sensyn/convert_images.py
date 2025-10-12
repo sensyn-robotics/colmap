@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Convert JPEG images to PNG format for COLMAP mask matching."""
 
+import argparse
 import os
 from PIL import Image
 import glob
@@ -42,4 +43,8 @@ def convert_images_to_png(image_dir="images"):
     print(f"Successfully converted {converted} images from JPEG to PNG")
 
 if __name__ == "__main__":
-    convert_images_to_png()
+    parser = argparse.ArgumentParser(description="Convert JPEG images to PNG format for COLMAP mask matching.")
+    parser.add_argument("--image-dir", type=str, default="images", help="Directory containing image files (default: images)")
+    args = parser.parse_args()
+
+    convert_images_to_png(args.image_dir)

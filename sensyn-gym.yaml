@@ -6,6 +6,6 @@ environment:
 compute: "NC24ads-A100" # lambda-cluster, NC24ads-A100
 command: "colmap automatic_reconstructor --workspace_path ."
 data: # optional
-  image_path: "tower_closeup_3fps_bgblur_275_278" # This must match your registered Azure ML data asset name
+  image_path: "tower_closeup_1fps_bgblur_780p_275_278" # This must match your registered Azure ML data asset name
 metadata: # optional
   task: "SfM for Gaussian Splatting"
