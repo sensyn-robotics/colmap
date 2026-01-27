@@ -27,7 +27,7 @@ find_package(Boost ${COLMAP_FIND_TYPE} COMPONENTS
 
 find_package(Eigen3 ${COLMAP_FIND_TYPE})
 
-find_package(FreeImage ${COLMAP_FIND_TYPE})
+find_package(OpenImageIO ${COLMAP_FIND_TYPE})
 
 find_package(Metis ${COLMAP_FIND_TYPE})
 
@@ -46,6 +46,8 @@ find_package(OpenGL ${COLMAP_FIND_TYPE})
 find_package(Glew ${COLMAP_FIND_TYPE})
 
 find_package(Git)
+
+find_package(CHOLMOD REQUIRED)
 
 find_package(Ceres ${COLMAP_FIND_TYPE})
 if(NOT TARGET Ceres::ceres)
@@ -88,7 +90,7 @@ endif()
 if(DOWNLOAD_ENABLED)
     # The OpenSSL package in vcpkg seems broken under Windows and leads to
     # missing certificate verification when connecting to SSL servers. We
-    # therefore use curl[schannel] (i.e., native Windows SSL/TLS) under Windows
+    # therefore use curl[sspi] (i.e., native Windows SSL/TLS) under Windows
     # and curl[openssl] otherwise.
     find_package(CURL QUIET)
     set(CRYPTO_FOUND FALSE)
@@ -156,7 +158,7 @@ if(CUDA_ENABLED)
 
             declare_imported_cuda_target(cudart ${CUDA_LIBRARIES})
             declare_imported_cuda_target(curand ${CUDA_LIBRARIES})
-            
+
             set(CUDAToolkit_VERSION "${CUDA_VERSION_STRING}")
             set(CUDAToolkit_BIN_DIR "${CUDA_TOOLKIT_ROOT_DIR}/bin")
         else()

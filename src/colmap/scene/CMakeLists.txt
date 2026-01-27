@@ -44,11 +44,13 @@ COLMAP_ADD_LIBRARY(
         point3d.h point3d.cc
         projection.h projection.cc
         reconstruction.h reconstruction.cc
+        reconstruction_clustering.h reconstruction_clustering.cc
         reconstruction_io.h reconstruction_io.cc
         reconstruction_io_binary.h reconstruction_io_binary.cc
         reconstruction_io_text.h reconstruction_io_text.cc
         reconstruction_io_utils.h reconstruction_io_utils.cc
         reconstruction_manager.h reconstruction_manager.cc
+        reconstruction_pruning.h reconstruction_pruning.cc
         rig.h rig.cc
         scene_clustering.h scene_clustering.cc
         synthetic.h synthetic.cc
@@ -63,6 +65,14 @@ COLMAP_ADD_LIBRARY(
         Eigen3::Eigen
         SQLite::SQLite3
 )
+
+if(TESTS_ENABLED)
+    target_sources(
+        colmap_scene
+        PRIVATE
+            reconstruction_matchers.h
+    )
+endif()
 
 COLMAP_ADD_TEST(
     NAME camera_test
@@ -129,6 +139,16 @@ COLMAP_ADD_TEST(
 COLMAP_ADD_TEST(
     NAME reconstruction_manager_test
     SRCS reconstruction_manager_test.cc
+    LINK_LIBS colmap_scene
+)
+COLMAP_ADD_TEST(
+    NAME reconstruction_matchers_test
+    SRCS reconstruction_matchers_test.cc
+    LINK_LIBS colmap_scene colmap_estimators
+)
+COLMAP_ADD_TEST(
+    NAME reconstruction_pruning_test
+    SRCS reconstruction_pruning_test.cc
     LINK_LIBS colmap_scene
 )
 COLMAP_ADD_TEST(

@@ -46,11 +46,13 @@ option(ASAN_ENABLED "Whether to enable AddressSanitizer flags" OFF)
 option(TSAN_ENABLED "Whether to enable ThreadSanitizer flags" OFF)
 option(UBSAN_ENABLED "Whether to enable UndefinedBehaviorSanitizer flags" OFF)
 option(PROFILING_ENABLED "Whether to enable google-perftools linker flags" OFF)
+option(WERROR_ENABLED "Whether to treat compiler warnings as errors" OFF)
 option(CCACHE_ENABLED "Whether to enable compiler caching, if available" ON)
 option(CGAL_ENABLED "Whether to enable the CGAL library" ON)
 option(LSD_ENABLED "Whether to enable the LSD library" ON)
 option(DOWNLOAD_ENABLED "Whether to enable (automatic) download of resources (requires Curl/OpenSSL)" ON)
 option(UNINSTALL_ENABLED "Whether to create a target to 'uninstall' colmap" ON)
+option(BENCHMARK_ENABLED "Whether to enable runtime benchmarking support" OFF)
 option(FETCH_POSELIB "Whether to consume PoseLib using FetchContent or find_package" ON)
 option(FETCH_FAISS "Whether to consume faiss using FetchContent or find_package" ON)
 option(ALL_SOURCE_TARGET "Whether to create a target for all source files (for Visual Studio / XCode development)" OFF)
@@ -78,7 +80,7 @@ endif()
 
 project(COLMAP LANGUAGES C CXX)
 
-set(COLMAP_VERSION "3.13.0.dev0")
+set(COLMAP_VERSION "3.14.0.dev0")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -238,9 +240,6 @@ else()
 endif()
 
 if(COVERAGE_ENABLED)
-    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-        message(FATAL_ERROR "Coverage can only be enabled in Debug or RelWithDebInfo mode")
-    endif()
     message(STATUS "Enabling coverage support")
 else()
     message(STATUS "Disabling coverage support")
@@ -257,7 +256,12 @@ include_directories(src)
 link_directories(${COLMAP_LINK_DIRS})
 
 add_subdirectory(src/colmap)
+add_subdirectory(src/glomap)
 add_subdirectory(src/thirdparty)
+
+if(BENCHMARK_ENABLED)
+    add_subdirectory(benchmark/runtime)
+endif()
 
 ################################################################################
 # Generate source groups for Visual Studio, XCode, etc.
@@ -361,6 +365,8 @@ set(COLMAP_EXPORT_LIBS
     # Internal.
     colmap_controllers
     colmap_estimators
+    colmap_estimators_cost_functions
+    colmap_estimators_solvers
     colmap_exe
     colmap_feature_types
     colmap_feature
@@ -374,6 +380,9 @@ set(COLMAP_EXPORT_LIBS
     colmap_sensor
     colmap_sfm
     colmap_util
+    colmap_glomap_estimators
+    colmap_glomap_scene
+    colmap_glomap_sfm
     # Third-party.
     colmap_poisson_recon
     colmap_vlfeat
