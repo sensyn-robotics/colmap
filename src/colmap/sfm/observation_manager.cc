@@ -71,20 +71,7 @@ ObservationManager::ObservationManager(
   // Add image stats.
   image_stats_.reserve(reconstruction_.NumImages());
   for (const auto& [image_id, image] : reconstruction_.Images()) {
-    const Camera& camera = *image.CameraPtr();
-    ImageStat image_stat;
-    image_stat.point3D_visibility_pyramid = VisibilityPyramid(
-        kNumPoint3DVisibilityPyramidLevels, camera.width, camera.height);
-    image_stat.num_visible_correspondences = 0;
-    image_stat.num_correspondences_have_point3D.resize(image.NumPoints2D(), 0);
-    image_stat.num_visible_points3D = 0;
-    if (correspondence_graph_ && correspondence_graph_->ExistsImage(image_id)) {
-      image_stat.num_observations =
-          correspondence_graph_->NumObservationsForImage(image_id);
-      image_stat.num_correspondences =
-          correspondence_graph_->NumCorrespondencesForImage(image_id);
-    }
-    image_stats_.emplace(image_id, image_stat);
+    image_stats_.emplace(image_id, InitImageStat(image_id, image));
   }
 
   // If an existing model was loaded from disk and there were already images
@@ -106,6 +93,87 @@ ObservationManager::ObservationManager(
       }
     }
   }
+}
+
+void ObservationManager::AddImage(const image_t image_id) {
+  THROW_CHECK(image_stats_.find(image_id) == image_stats_.end())
+      << "Image " << image_id << " already exists in the ObservationManager";
+  THROW_CHECK(reconstruction_.ExistsImage(image_id))
+      << "Image " << image_id << " must be added to the Reconstruction first";
+  if (correspondence_graph_) {
+    THROW_CHECK(correspondence_graph_->ExistsImage(image_id))
+        << "Image " << image_id
+        << " must be added to the CorrespondenceGraph first";
+  }
+  const Image& image = reconstruction_.Image(image_id);
+  image_stats_.emplace(image_id, InitImageStat(image_id, image));
+
+  if (correspondence_graph_) {
+    // Add image pair stats for all pairs involving the new image and refresh
+    // the cached stats for existing images, whose observation/correspondence
+    // counts may have increased when AddTwoViewGeometry added new
+    // correspondences.
+    for (auto& [other_image_id, other_stats] : image_stats_) {
+      if (other_image_id == image_id) {
+        continue;
+      }
+      const point2D_t num_matches =
+          correspondence_graph_->NumMatchesBetweenImages(image_id,
+                                                         other_image_id);
+      if (num_matches > 0) {
+        const image_pair_t pair_id =
+            ImagePairToPairId(image_id, other_image_id);
+        ImagePairStat image_pair_stat;
+        image_pair_stat.num_total_corrs = num_matches;
+        image_pair_stats_.emplace(pair_id, image_pair_stat);
+
+        other_stats.num_observations =
+            correspondence_graph_->NumObservationsForImage(other_image_id);
+        other_stats.num_correspondences =
+            correspondence_graph_->NumCorrespondencesForImage(other_image_id);
+      }
+    }
+
+    // Propagate visibility from already-triangulated points.
+    // In the batch pipeline, the constructor handles this by iterating
+    // all registered images and propagating triangulation visibility to
+    // their correspondences. Since this image was not present during
+    // construction, it missed that propagation. We catch up here by
+    // scanning the new image for correspondences to points that are
+    // already triangulated in other images.
+    for (point2D_t point2D_idx = 0; point2D_idx < image.NumPoints2D();
+         ++point2D_idx) {
+      const auto corr_range =
+          correspondence_graph_->FindCorrespondences(image_id, point2D_idx);
+      for (const auto* corr = corr_range.beg; corr < corr_range.end; ++corr) {
+        const Image& corr_image = reconstruction_.Image(corr->image_id);
+        if (corr_image.HasPose()) {
+          const Point2D& corr_point2D = corr_image.Point2D(corr->point2D_idx);
+          if (corr_point2D.HasPoint3D()) {
+            IncrementCorrespondenceHasPoint3D(image_id, point2D_idx);
+          }
+        }
+      }
+    }
+  }
+}
+
+ObservationManager::ImageStat ObservationManager::InitImageStat(
+    const image_t image_id, const Image& image) const {
+  const Camera& camera = *image.CameraPtr();
+  ImageStat image_stat;
+  image_stat.point3D_visibility_pyramid = VisibilityPyramid(
+      kNumPoint3DVisibilityPyramidLevels, camera.width, camera.height);
+  image_stat.num_visible_correspondences = 0;
+  image_stat.num_correspondences_have_point3D.resize(image.NumPoints2D(), 0);
+  image_stat.num_visible_points3D = 0;
+  if (correspondence_graph_ && correspondence_graph_->ExistsImage(image_id)) {
+    image_stat.num_observations =
+        correspondence_graph_->NumObservationsForImage(image_id);
+    image_stat.num_correspondences =
+        correspondence_graph_->NumCorrespondencesForImage(image_id);
+  }
+  return image_stat;
 }
 
 void ObservationManager::IncrementCorrespondenceHasPoint3D(
@@ -196,7 +264,7 @@ void ObservationManager::ResetTriObservations(const image_t image_id,
         (!is_deleted_point3D || image_id < corr->image_id)) {
       const image_pair_t pair_id = ImagePairToPairId(image_id, corr->image_id);
       THROW_CHECK_GT(image_pair_stats_[pair_id].num_tri_corrs, 0)
-          << "The scene graph graph must not contain duplicate matches";
+          << "The scene graph must not contain duplicate matches";
       image_pair_stats_[pair_id].num_tri_corrs -= 1;
     }
   }
@@ -310,13 +378,28 @@ size_t ObservationManager::FilterAllPoints3D(const double max_reproj_error,
   // Important: First filter observations and points with large reprojection
   // error, so that observations with large reprojection error do not make
   // a point stable through a large triangulation angle.
-  const std::unordered_set<point3D_t>& point3D_ids =
+  const std::unordered_set<point3D_t> point3D_ids =
       reconstruction_.Point3DIds();
   size_t num_filtered_observations = 0;
   num_filtered_observations +=
       FilterPoints3DWithLargeReprojectionError(max_reproj_error, point3D_ids);
   num_filtered_observations +=
       FilterPoints3DWithSmallTriangulationAngle(min_tri_angle, point3D_ids);
+  return num_filtered_observations;
+}
+
+size_t ObservationManager::FilterPoints3DWithShortTracks(
+    const size_t min_track_length) {
+  size_t num_filtered_observations = 0;
+  const std::unordered_set<point3D_t> point3D_ids =
+      reconstruction_.Point3DIds();
+  for (const point3D_t point3D_id : point3D_ids) {
+    const struct Point3D& point3D = reconstruction_.Point3D(point3D_id);
+    if (point3D.track.Length() < min_track_length) {
+      num_filtered_observations += point3D.track.Length();
+      DeletePoint3D(point3D_id);
+    }
+  }
   return num_filtered_observations;
 }
 

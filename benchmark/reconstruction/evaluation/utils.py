@@ -188,6 +188,11 @@ def parse_args() -> argparse.Namespace:
         help="Number of processes for parallel reconstruction.",
     )
     parser.add_argument(
+        "--feature",
+        default="sift",
+        choices=["sift", "aliked"],
+    )
+    parser.add_argument(
         "--mapper",
         default="incremental",
         choices=["incremental", "hierarchical", "global"],
@@ -326,6 +331,8 @@ def colmap_reconstruction(
         "1" if args.use_gpu else "0",
         "--num_threads",
         str(num_threads),
+        "--feature",
+        args.feature,
         "--mapper",
         args.mapper,
         "--quality",
@@ -533,15 +540,18 @@ def process_scenes(
         args.parallelism, 2 * max(1, int(args.parallelism / len(scene_infos)))
     )
     with multiprocessing.Pool(processes=args.parallelism) as p:
-        results = p.map(
-            functools.partial(
-                process_scene,
-                args,
-                prepare_scene=prepare_scene,
-                position_accuracy_gt=position_accuracy_gt,
-                num_threads=num_threads,
-            ),
-            scene_infos,
+        results = list(
+            p.imap_unordered(
+                functools.partial(
+                    process_scene,
+                    args,
+                    prepare_scene=prepare_scene,
+                    position_accuracy_gt=position_accuracy_gt,
+                    num_threads=num_threads,
+                ),
+                scene_infos,
+                chunksize=1,
+            )
         )
 
     metrics: MetricsByCatByScene = collections.defaultdict(dict)
@@ -913,7 +923,13 @@ def create_result_table(
     for dataset, category_metrics in dataset_metrics.items():
         for category, scene_metrics in category_metrics.items():
             text.append(f"\n{dataset + '=' + category:=^{size_sep}}")
-            for scene, metrics in scene_metrics.items():
+            for scene, metrics in sorted(
+                scene_metrics.items(),
+                key=lambda x: (
+                    x[0].startswith("__"),
+                    x[0],
+                ),
+            ):
                 scores = get_scores(first_metrics.error_type, metrics)
                 assert len(scores) == len(thresholds)
                 row = ""

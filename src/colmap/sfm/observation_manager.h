@@ -68,6 +68,13 @@ class ObservationManager {
   inline const std::unordered_map<image_pair_t, ImagePairStat>& ImagePairs()
       const;
 
+  // Add image stats for streaming/online SfM, so that the image can be
+  // registered and triangulated without rebuilding the ObservationManager.
+  // The image must already be added to the Reconstruction and
+  // CorrespondenceGraph. Note: O(N) per call in the number of existing
+  // images for image pair stats update.
+  void AddImage(image_t image_id);
+
   // Add new 3D object, and return its unique ID.
   point3D_t AddPoint3D(
       const Eigen::Vector3d& xyz,
@@ -102,6 +109,13 @@ class ObservationManager {
                                 double min_tri_angle,
                                 const std::unordered_set<image_t>& image_ids);
   size_t FilterAllPoints3D(double max_reproj_error, double min_tri_angle);
+
+  // Filter points with track length below threshold.
+  //
+  // @param min_track_length   Minimum track length to keep a point.
+  //
+  // @return                   The number of filtered observations.
+  size_t FilterPoints3DWithShortTracks(size_t min_track_length);
 
   // Filter observations that have negative depth.
   //
@@ -204,6 +218,8 @@ class ObservationManager {
     // correspondences in the image.
     VisibilityPyramid point3D_visibility_pyramid;
   };
+
+  ImageStat InitImageStat(image_t image_id, const Image& image) const;
 
   class Reconstruction& reconstruction_;
   const std::shared_ptr<const CorrespondenceGraph> correspondence_graph_;

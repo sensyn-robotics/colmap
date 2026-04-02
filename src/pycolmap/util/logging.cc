@@ -1,3 +1,5 @@
+#include "colmap/util/logging.h"
+
 #include "pycolmap/pybind11_extension.h"
 
 #include <filesystem>
@@ -97,6 +99,14 @@ void BindLogging(py::module& m) {
                 << msg;
           },
           py::arg("message"));
+
+#if COLMAP_GLOG_HAS_STDOUT_SUPPORT
+  PyLogging.def_readwrite_static("logtostdout", &FLAGS_logtostdout)
+      .def_readwrite_static("colorlogtostdout", &FLAGS_colorlogtostdout);
+#endif
+#if COLMAP_GLOG_HAS_COLOR_SUPPORT
+  PyLogging.def_readwrite_static("colorlogtostderr", &FLAGS_colorlogtostderr);
+#endif
 
 #if defined(GLOG_VERSION_MAJOR) && \
     (GLOG_VERSION_MAJOR > 0 || GLOG_VERSION_MINOR >= 6)

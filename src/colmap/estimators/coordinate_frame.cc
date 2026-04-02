@@ -110,11 +110,11 @@ Eigen::Vector3d EstimateGravityVectorFromImageOrientation(
 
 struct VanishingPointEstimator {
   // The line segments.
-  typedef LineSegment X_t;
+  using X_t = LineSegment;
   // The line representation of the segments.
-  typedef Eigen::Vector3d Y_t;
+  using Y_t = Eigen::Vector3d;
   // The vanishing point.
-  typedef Eigen::Vector3d M_t;
+  using M_t = Eigen::Vector3d;
 
   // The minimum number of samples needed to estimate a model.
   static const int kMinNumSamples = 2;
@@ -176,7 +176,7 @@ Eigen::Matrix3d EstimateManhattanWorldFrame(
 
     LOG(INFO) << "Reading image...";
 
-    colmap::Bitmap bitmap;
+    Bitmap bitmap;
     THROW_CHECK(bitmap.Read(image_path / image.Name()));
 
     LOG(INFO) << "Undistorting image...";
